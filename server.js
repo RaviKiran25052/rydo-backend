@@ -5,6 +5,7 @@ const authRoutes = require("./routes/authRoutes");
 const rideRoutes = require("./routes/rideRoutes");
 const vehicleRoutes = require("./routes/vehicleRoutes");
 const passengerRoutes = require("./routes/passengerRoutes");
+const errorHandler = require("./middleware/errorHandler");
 
 connectDB();
 
@@ -12,10 +13,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.use("/api/auth", authRoutes);
-app.use("/api/ride", rideRoutes);
-app.use("/api/vehicle", vehicleRoutes);
-app.use("/api/passenger", passengerRoutes);
+app.use("/rydo/user", authRoutes);
+app.use("/rydo/ride", rideRoutes);
+app.use("/rydo/vehicle", vehicleRoutes);
+app.use("/rydo/passenger", passengerRoutes);
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

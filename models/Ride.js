@@ -1,15 +1,21 @@
 const mongoose = require("mongoose");
 
-const rideSchema = new mongoose.Schema({
+const RideSchema = new mongoose.Schema({
 	driverId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 	vehicleId: { type: mongoose.Schema.Types.ObjectId, ref: "Vehicle", required: true },
 	source: { type: String, required: true },
 	destination: { type: String, required: true },
-	totalDistance: { type: Number, required: true }, // Distance in km
-	fuelCost: { type: Number, required: true }, // Market price per km
-	createdAt: { type: Date, default: Date.now },
-	passengers: [{ type: mongoose.Schema.Types.ObjectId, ref: "Passenger" }], // Reference to passengers
-	isCompleted: { type: Boolean, default: false },
+	totalDistance: { type: Number, required: true },
+	fuelCost: { type: Number, required: true },
+	passengers: [
+		{
+			userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+			startLocation: { type: String, required: true },
+			endLocation: { type: String, required: true },
+			fare: { type: Number, required: true }
+		}
+	],
+	isCompleted: { type: Boolean, default: false }
 });
 
-module.exports = mongoose.model("Ride", rideSchema);
+module.exports = mongoose.model("Ride", RideSchema);
