@@ -1,6 +1,7 @@
 const express = require("express");
 const Ride = require("../models/Ride");
 const Vehicle = require("../models/Vehicle");
+const Passenger = require("../models/Passenger");
 const { getDistance, calculateFare } = require("../utils/fareCalculator");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -32,11 +33,11 @@ router.post("/:rideId/join", authMiddleware, async (req, res) => {
 		const { startLocation, endLocation } = req.body;
 		const userId = req.user.id;
 
-		// Find the ride
-		const ride = await Ride.findById(rideId);
+		// Find the ride with passenger details
+		const ride = await Ride.findById(rideId).populate("passengers");
 		if (!ride) return res.status(404).json({ message: "Ride not found" });
 
-		// Check if start & end locations are within ride's path
+		// Validate the route
 		const rideDistance = await getDistance(ride.source, ride.destination);
 		const passengerDistance = await getDistance(startLocation, endLocation);
 
@@ -44,22 +45,51 @@ router.post("/:rideId/join", authMiddleware, async (req, res) => {
 			return res.status(400).json({ message: "Invalid route" });
 		}
 
-		// Add new passenger & calculate updated fares
-		const updatedPassengers = await calculateFare(ride.totalDistance, ride.fuelCost, [
-			...ride.passengers,
-			{ userId, startLocation, endLocation },
-		]);
+		// Check if user is already in the ride
+		let passenger = ride.passengers.find(p => p.userId.toString() === userId);
 
-		// Update ride with new passenger list
-		ride.passengers = updatedPassengers;
+		if (passenger) {
+			// Update existing passenger's start & end location
+			passenger.startLocation = startLocation;
+			passenger.endLocation = endLocation;
+			await passenger.save();
+		} else {
+			// Create a new passenger entry
+			passenger = new Passenger({
+				userId,
+				rideId,
+				startLocation,
+				endLocation,
+				fare: 0, // Placeholder, will update after fare calculation
+			});
+			await passenger.save();
+
+			// Add passenger ID to ride
+			ride.passengers.push(passenger._id);
+		}
+
+		// Fetch all updated passengers
+		const passengers = await Passenger.find({ rideId });
+
+		// Recalculate and update fares including the rider’s share
+		const updatedFares = await calculateFare(ride.totalDistance, ride.fuelCost, passengers, ride.source, ride.destination);
+
+		// Update fares in the database
+		await Promise.all(
+			updatedFares.map(async (p) => {
+				await Passenger.findByIdAndUpdate(p._id, { fare: p.fare });
+			})
+		);
+
+		// Save updated ride
 		await ride.save();
 
 		return res.status(200).json({
-			message: "Passenger added successfully",
+			message: passenger ? "Passenger details updated" : "Passenger added successfully",
 			updatedRide: ride,
 		});
 	} catch (error) {
-		console.error("Error adding passenger:", error);
+		console.error("Error adding/updating passenger:", error);
 		return res.status(500).json({ message: "Server error" });
 	}
 });

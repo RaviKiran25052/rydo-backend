@@ -7,14 +7,7 @@ const RideSchema = new mongoose.Schema({
 	destination: { type: String, required: true },
 	totalDistance: { type: Number, required: true },
 	fuelCost: { type: Number, required: true },
-	passengers: [
-		{
-			userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-			startLocation: { type: String, required: true },
-			endLocation: { type: String, required: true },
-			fare: { type: Number, required: true }
-		}
-	],
+	passengers: [{ type: mongoose.Schema.Types.ObjectId, ref: "Passenger" }],
 	isCompleted: { type: Boolean, default: false }
 });
 

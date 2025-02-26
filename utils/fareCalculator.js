@@ -26,10 +26,11 @@ const getDistance = async (startPlace, endPlace) => {
 
 		const url = `https://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?overview=false`;
 
-		console.log("Fetching distance from:", url);
 		const response = await axios.get(url);
-
+		
 		if (!response.data.routes.length) throw new Error("Invalid route");
+		const distance = response.data.routes[0].distance / 1000;
+		console.log("Fetching distance from:", startPlace, " to ", endPlace, ": ", distance.toFixed(2));
 
 		// Distance is in meters, convert to km
 		return response.data.routes[0].distance / 1000;
@@ -39,22 +40,39 @@ const getDistance = async (startPlace, endPlace) => {
 	}
 };
 
-const calculateFare = async (totalDistance, fuelCost, passengers) => {
+const calculateFare = async (totalDistance, fuelCost, passengers, riderSource, riderDestination) => {
 	try {
 		if (!passengers.length) return [];
 
-		const costPerKm = fuelCost / totalDistance;
-
-		// Calculate fare per passenger
-		const updatedPassengers = await Promise.all(
+		// Get distances for each passenger
+		const passengerDistances = await Promise.all(
 			passengers.map(async (p) => {
 				const distance = await getDistance(p.startLocation, p.endLocation);
-				return {
-					...p,
-					fare: distance ? (distance * costPerKm).toFixed(2) : "N/A",
-				};
+				return { ...p.toObject(), distance };
 			})
 		);
+
+		// Calculate rider’s own travel distance
+		const riderDistance = await getDistance(riderSource, riderDestination);
+
+		// Calculate total distance covered by all passengers + rider
+		const totalCoveredDistance = passengerDistances.reduce((sum, p) => sum + (p.distance || 0), 0) + riderDistance;
+
+		if (totalCoveredDistance === 0) return passengers.map(p => ({ ...p, fare: "N/A" }));
+
+		// Compute cost per km
+		const costPerKm = fuelCost / totalDistance;
+
+		// Calculate fare per passenger + rider's share
+		const updatedPassengers = passengerDistances.map(p => ({
+			...p,
+			fare: ((p.distance * costPerKm) / (totalCoveredDistance / totalDistance)).toFixed(2),
+		}));
+
+		// Calculate rider's share
+		const riderFare = ((riderDistance * costPerKm) / (totalCoveredDistance / totalDistance)).toFixed(2);
+
+		console.log(`Rider's share of fare: ${riderFare}`);
 
 		return updatedPassengers;
 	} catch (error) {
